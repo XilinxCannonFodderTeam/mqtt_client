@@ -40,13 +40,37 @@ class device_interface(mqtt.Client):
         self.url = ""
         self.port = 1883
         self.keepalive = 60
-        self.topic_in_use = []
-        self.topic = {"device2server":"","server2device":[],"server2app":[]}
+        self.topic_in_use = set()
+        self.topic = {"2server":"to_server","2device":set(),"2app_deivce":set()}
+        self.device_pair_app2device = {}
+        self.device_pair_device2app = {}
         self._rc_mean = ["connect success","wrong proticol","unlegal client id","server can not use","unauthorized"]
         self.use_quick_search = False
         self.qos = 0
         self.__on_running = False
+        self.__on_connect = False
 
+    def add2device_topic(self,topic):
+        if topic and str(topic) not in self.topic_in_use:
+            self.topic_in_use.add(topic)
+            self.topic["2device"].add(topic)
+
+    def add2app_device_topic(self,topic):
+        if topic and str(topic) not in self.topic_in_use:
+            self.topic_in_use.add(topic)
+            self.topic["2app_deivce"].add(topic)
+
+    def change_2server_topic(self,topic):
+        if topic and str(topic) not in self.topic_in_use:
+            self.topic_in_use.add(topic)
+            self.topic_in_use.remove(self.topic["2server"])
+            self.topic["2server"] = topic
+
+    def send2server(self,msg):
+        if self.__on_connect:
+            self.publish(self.topic["2server"],str(msg))
+
+    
     
     def add_action(self,action,action_name=None):
         """
@@ -60,12 +84,17 @@ class device_interface(mqtt.Client):
             action_name：添加的键值，以此键值作为调用的依据，如果为None就使用函数本身的名字
 
             action要求：
-                1.目前请不要使用参数
+                1.目前参数的数量不要超过2个，对应的位置会传入对应参数
                 2.返回值可以为空，但如果返回请使用str类型
                 3.有返回值时，格式约定为\"topic 实际返回值\"，topic指定你发送的目标，实际返回值为你希望发送的信息
 
+            action参数要求：
+                1.如果没有参数，就直接调用
+                2.如果只有一个参数，只传递msg，也就是MQTTmessage类
+                3.如果有两个参数，则第一个参数传递msg，第二个参数传递device_interface的实例
+
         """
-        if action:
+        if action and callable(action):
             action_name = action_name if action_name else action.__name__
             self.action[action_name] = action
 
@@ -93,17 +122,23 @@ class device_interface(mqtt.Client):
                 4.不要在添加Action后再修改此值，会出错
                 5.功能暂未实现，请不要调用
         """
-        print(1)
         payload = str(msg.payload,encoding="utf-8")
-        if msg.topic in self.topic["server2device"]:
-            print(2)
+        if msg.topic in self.topic_in_use:
             if self.use_quick_search:
                 self.quick_search_for_api(msg)
             else:
-                print(3)
                 if payload.split()[0] in self.action.keys():
-                    print(4)
-                    ret = self.action[payload.split()[0]]()
+                    func = self.action[payload.split()[0]]
+                    func_argc = func.__code__.co_argcount
+                    ret = None
+                    if func_argc == 0:
+                        ret = func()
+                    elif func_argc == 1:
+                        ret = func(self)
+                    elif func_argc == 2:
+                        ret = func(self,msg)
+                    else:
+                        raise BaseException("can not support args count more than 2 for now")
             if ret:
                 self.send_ret2topic(ret)
 
