@@ -2,7 +2,6 @@ import paho.mqtt.client as mqtt
 import datetime
 import time
 import threading
-from config import *
 import logging
 
 
@@ -49,6 +48,7 @@ class device_interface(mqtt.Client):
         self.qos = 0
         self.__on_running = False
         self.__on_connect = False
+        self.default_func = None
 
     def add2device_topic(self,topic):
         if topic and str(topic) not in self.topic_in_use:
@@ -124,21 +124,26 @@ class device_interface(mqtt.Client):
         """
         payload = str(msg.payload,encoding="utf-8")
         if msg.topic in self.topic_in_use:
+            ret = None
+            func = None
             if self.use_quick_search:
                 self.quick_search_for_api(msg)
             else:
+                # 对函数进行搜索，如果没找到则使用默认的函数进行处理
                 if payload.split()[0] in self.action.keys():
                     func = self.action[payload.split()[0]]
-                    func_argc = func.__code__.co_argcount
-                    ret = None
-                    if func_argc == 0:
-                        ret = func()
-                    elif func_argc == 1:
-                        ret = func(self)
-                    elif func_argc == 2:
-                        ret = func(self,msg)
-                    else:
-                        raise BaseException("can not support args count more than 2 for now")
+                elif self.default_func:
+                    func = self.default_func
+                # 依据函数的参数数量进行调用
+                func_argc = func.__code__.co_argcount
+                if func_argc == 0:
+                    ret = func()
+                elif func_argc == 1:
+                    ret = func(msg)
+                elif func_argc == 2:
+                    ret = func(msg, self)
+                else:
+                    raise BaseException("can not support args count more than 2 for now")
             if ret:
                 self.send_ret2topic(ret)
 
@@ -200,7 +205,7 @@ class device_interface(mqtt.Client):
         """
         curtime = datetime.datetime.now()
         strcurtime = curtime.strftime("%Y-%m-%d %H:%M:%S")
-        print("12345")
+        print("**************on_message***************")
         logging.info(strcurtime + ": " + msg.topic+" "+str(msg.qos)+" "+str(msg.payload))
         self.search_exct_api_by_str(msg)
 
