@@ -1,5 +1,7 @@
 import paho.mqtt.client as mqtt
 import os
+import json
+import copy
 import datetime
 import time
 import threading
@@ -35,10 +37,11 @@ class device_interface(mqtt.Client):
             client_id=client_id, clean_session=clean_session, 
             userdata=userdata,protocol=protocol, transport=transport
         )
+        self.__config_file_path = "./config.json"
         self.action = {}
         self.action_load = {}
         self.client = None
-        self.url = ""
+        self.host = ""
         self.port = 1883
         self.keepalive = 60
         self.topic_in_use = set()
@@ -52,6 +55,29 @@ class device_interface(mqtt.Client):
         self.__on_running = False
         self.__on_connect = False
         self.default_func = None
+        self.default_func_path = None
+
+    def load_from_config(self, config_file_path = None):
+        pass
+
+    def save_to_config(self, config_file_path = None):
+        config_file_path = config_file_path if config_file_path else self.__config_file_path
+        info_to_save = {}
+        info_to_save["action_load"] = self.action_load
+        info_to_save["host"] = self.host
+        info_to_save["port"] = self.port
+        info_to_save["keepalive"] = self.keepalive
+        info_to_save["topic"] = copy.deepcopy(self.topic)
+        info_to_save["topic"]["2device"] = list(info_to_save["topic"]["2device"])
+        info_to_save["topic"]["2app_deivce"] = list(info_to_save["topic"]["2app_deivce"])
+        info_to_save["device_pair_app2device"] = self.device_pair_app2device
+        info_to_save["device_pair_device2app"] = self.device_pair_device2app
+        info_to_save["qos"] = self.qos
+        info_to_save["on_running"] = self.__on_running
+        info_to_save["on_connect"] = self.__on_connect
+        with open(config_file_path,'w') as f:
+            f.write(json.dumps(info_to_save))
+        
 
     def add2device_topic(self,topic):
         if topic and str(topic) not in self.topic_in_use:
@@ -72,6 +98,17 @@ class device_interface(mqtt.Client):
     def send2server(self,msg):
         if self.__on_connect:
             self.publish(self.topic["2server"],str(msg))
+
+    def __check_func_can_be_add(self,action):
+        if not (action and callable(action)):
+            return -1
+        action_def_path = action.__code__.co_filename
+        action_def_relpath = os.path.relpath(action_def_path)
+        if action_def_relpath[:2] is "..":
+            return -1
+        if action.__code__.co_argcount > 2:
+            return -1
+        return 0
 
     
     
@@ -97,18 +134,21 @@ class device_interface(mqtt.Client):
                 3.如果有两个参数，则第一个参数传递msg，第二个参数传递device_interface的实例
 
         """
-        if not (action and callable(action)):
+        if self.__check_func_can_be_add(action) != 0:
             return -1
         action_func_name = action.__name__
         action_name = action_name if action_name else action_func_name
         action_def_path = action.__code__.co_filename
-        action_def_relpath = os.path.relpath(action_def_path)
-        if action_def_relpath[:2] is "..":
-            return -1
-        if action.__code__.co_argcount > 2:
-            return -1
         self.action_load[action_func_name] = action_def_path
         self.action[action_name] = action
+
+    def set_default_action(self, action):
+        if self.__check_func_can_be_add(action) != 0:
+            return -1
+        self.default_func = action
+        self.default_func_path = action.__code__.co_filename
+
+
 
     def send_ret2topic(self,ret):
         """
