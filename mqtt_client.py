@@ -37,6 +37,7 @@ class device_interface(mqtt.Client):
             client_id=client_id, clean_session=clean_session, 
             userdata=userdata,protocol=protocol, transport=transport
         )
+        self.client_id = client_id
         self.__config_file_path = "./config.json"
         self.action = {}
         self.action_load = {}
@@ -56,13 +57,45 @@ class device_interface(mqtt.Client):
         self.__on_connect = False
         self.default_func = None
         self.default_func_path = None
+        self.device_type = ""
 
     def load_from_config(self, config_file_path = None):
-        pass
+        config_file_path = config_file_path if config_file_path else self.__config_file_path
+        if not os.path.isfile(config_file_path):
+            return -1
+        if self.__on_running:
+            self.loop_stop()
+        with open(config_file_path,"r") as f:
+            info = f.read()
+        info_to_save = json.loads(info)
+        self.client_id = info_to_save["client_id"]
+        self.action_load = info_to_save["action_load"]
+        self.host = info_to_save["host"]
+        self.port = info_to_save["port"]
+        self.keepalive = info_to_save["keepalive"]
+        self.topic = info_to_save["topic"]
+        self.topic["2device"] = set(self.topic["2device"])
+        self.topic["2app_deivce"] = set(self.topic["2app_deivce"])
+        self.topic_in_use.clear()
+        for key in self.topic.keys():
+            for topic in self.topic[key]:
+                self.topic_in_use.add(topic)
+        self.device_pair_app2device = info_to_save["device_pair_app2device"]
+        self.device_pair_device2app = info_to_save["device_pair_device2app"]
+        self.use_quick_search = info_to_save["use_quick_search"]
+        self.qos = info_to_save["qos"]
+        self.__on_running = info_to_save["on_running"]
+        self.__on_connect = info_to_save["on_connect"]
+        self.device_type = info_to_save["device_type"]
+        if self.__on_running:
+            self.__on_running = False
+            self.run(self.device_type, self.host, self.port)
+        return 0
 
     def save_to_config(self, config_file_path = None):
         config_file_path = config_file_path if config_file_path else self.__config_file_path
         info_to_save = {}
+        info_to_save["client_id"] = self.client_id
         info_to_save["action_load"] = self.action_load
         info_to_save["host"] = self.host
         info_to_save["port"] = self.port
@@ -72,9 +105,11 @@ class device_interface(mqtt.Client):
         info_to_save["topic"]["2app_deivce"] = list(info_to_save["topic"]["2app_deivce"])
         info_to_save["device_pair_app2device"] = self.device_pair_app2device
         info_to_save["device_pair_device2app"] = self.device_pair_device2app
+        info_to_save["use_quick_search"] = self.use_quick_search
         info_to_save["qos"] = self.qos
         info_to_save["on_running"] = self.__on_running
         info_to_save["on_connect"] = self.__on_connect
+        info_to_save["device_type"] = self.device_type
         with open(config_file_path,'w') as f:
             f.write(json.dumps(info_to_save))
         
@@ -273,6 +308,9 @@ class device_interface(mqtt.Client):
         # 设置账号密码（如果需要的话）
         #self.client.username_pw_set(username, password=password)
         if not self.__on_running:
+            self.host = host
+            self.port = port
+            self.device_type = device_type
             self.connect(host, port, self.keepalive)
             self.loop_start()
             self.__on_running = True
