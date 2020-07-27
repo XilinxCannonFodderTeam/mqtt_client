@@ -61,6 +61,11 @@ class device_interface(mqtt.Client):
         self.device_type = ""
 
     def __get_func_by_path(self,func_name,func_abs_path):
+        """
+            此函数的功能是依据函数名称和函数所在文件的绝对路径，
+            实现函数的导入功能
+            原理是使用了python的importlib
+        """
         path = os.path.relpath(func_abs_path)
         path = path[:-3]
         package = None
@@ -72,12 +77,20 @@ class device_interface(mqtt.Client):
             return getattr(module,func_name)
 
     def __set_action_by_action_load(self):
+        """
+            此函数是将所有的self.action_load记录的函数名，函数所在文件对进行导入
+        """
         for action in self.action_load.keys():
             func = self.__get_func_by_path(action, self.action_load[action])
             self.add_action(func)
 
 
     def load_from_config(self, config_file_path = None):
+        """
+            此函数需要与提供的save_to_config一起使用
+            config_file_path：的默认位置是同级目录下的config.json
+            return：返回0表示成功的从配置文件导入,否则为失败
+        """
         config_file_path = config_file_path if config_file_path else self.__config_file_path
         if not os.path.isfile(config_file_path):
             return -1
@@ -113,6 +126,10 @@ class device_interface(mqtt.Client):
         return 0
 
     def save_to_config(self, config_file_path = None):
+        """
+            此函数需要与提供的load_from_config一起使用
+            config_file_path：的默认位置是同级目录下的config.json
+        """
         config_file_path = config_file_path if config_file_path else self.__config_file_path
         info_to_save = {}
         info_to_save["client_id"] = self.client_id
