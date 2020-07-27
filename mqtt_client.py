@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import os
 import json
 import copy
+import importlib
 import datetime
 import time
 import threading
@@ -59,6 +60,23 @@ class device_interface(mqtt.Client):
         self.default_func_path = None
         self.device_type = ""
 
+    def __get_func_by_path(self,func_name,func_abs_path):
+        path = os.path.relpath(func_abs_path)
+        path = path[:-3]
+        package = None
+        tmp = path.split("\\")
+        package = tmp[0]
+        path = "." + "/".join(tmp[1:])
+        module = importlib.import_module(path, package)
+        if func_name in dir(module):
+            return getattr(module,func_name)
+
+    def __set_action_by_action_load(self):
+        for action in self.action_load.keys():
+            func = self.__get_func_by_path(action, self.action_load[action])
+            self.add_action(func)
+
+
     def load_from_config(self, config_file_path = None):
         config_file_path = config_file_path if config_file_path else self.__config_file_path
         if not os.path.isfile(config_file_path):
@@ -87,6 +105,8 @@ class device_interface(mqtt.Client):
         self.__on_running = info_to_save["on_running"]
         self.__on_connect = info_to_save["on_connect"]
         self.device_type = info_to_save["device_type"]
+        self.action.clear()
+        self.__set_action_by_action_load()
         if self.__on_running:
             self.__on_running = False
             self.run(self.device_type, self.host, self.port)
