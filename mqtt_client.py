@@ -1,4 +1,5 @@
 import paho.mqtt.client as mqtt
+import os
 import datetime
 import time
 import threading
@@ -35,6 +36,7 @@ class device_interface(mqtt.Client):
             userdata=userdata,protocol=protocol, transport=transport
         )
         self.action = {}
+        self.action_load = {}
         self.client = None
         self.url = ""
         self.port = 1883
@@ -43,7 +45,8 @@ class device_interface(mqtt.Client):
         self.topic = {"2server":"to_server","2device":set(),"2app_deivce":set()}
         self.device_pair_app2device = {}
         self.device_pair_device2app = {}
-        self._rc_mean = ["connect success","wrong proticol","unlegal client id","server can not use","unauthorized"]
+        self._rc_mean = ["connect success","wrong proticol",
+                "unlegal client id","server can not use","unauthorized"]
         self.use_quick_search = False
         self.qos = 0
         self.__on_running = False
@@ -94,9 +97,18 @@ class device_interface(mqtt.Client):
                 3.如果有两个参数，则第一个参数传递msg，第二个参数传递device_interface的实例
 
         """
-        if action and callable(action):
-            action_name = action_name if action_name else action.__name__
-            self.action[action_name] = action
+        if not (action and callable(action)):
+            return -1
+        action_func_name = action.__name__
+        action_name = action_name if action_name else action_func_name
+        action_def_path = action.__code__.co_filename
+        action_def_relpath = os.path.relpath(action_def_path)
+        if action_def_relpath[:2] is "..":
+            return -1
+        if action.__code__.co_argcount > 2:
+            return -1
+        self.action_load[action_func_name] = action_def_path
+        self.action[action_name] = action
 
     def send_ret2topic(self,ret):
         """
@@ -234,14 +246,17 @@ class device_interface(mqtt.Client):
 if __name__ == '__main__':
     logging.basicConfig(filename="./test.log",format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.INFO)
-    t = device_interface()
+    # t = device_interface()
     t2 = device_interface("test2")
-    host = "localhost"
+    host = "52.184.15.163"
     port = 1883
-    t.run("123",host,port)
+    # t.run("123",host,port)
     t2.run("234",host,port)
-    t.subscribe("test",2)
+    # t.subscribe("test",2)
     
-    time.sleep(1)
-    t2.publish("test","this is a test.",2)
-    time.sleep(1000)
+    # time.sleep(1)
+    # t2.publish("test","print_msg3 123456",2)
+    # for i in range(100):
+    #     t2.publish("test","time_test "+str(time.perf_counter()),2)
+    #     time.sleep(1)
+    # time.sleep(1000)
