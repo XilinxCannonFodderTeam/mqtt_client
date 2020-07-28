@@ -42,6 +42,7 @@ class device_interface(mqtt.Client):
         self.__config_file_path = "./config.json"
         self.action = {}
         self.action_load = {}
+        self.action_func_name = {}
         self.client = None
         self.host = ""
         self.port = 1883
@@ -59,6 +60,7 @@ class device_interface(mqtt.Client):
         self.default_func = None
         self.default_func_path = None
         self.device_type = ""
+        self.__topic_subscribe = []
 
     def __get_func_by_path(self,func_name,func_abs_path):
         """
@@ -82,7 +84,7 @@ class device_interface(mqtt.Client):
         """
         for action in self.action_load.keys():
             func = self.__get_func_by_path(action, self.action_load[action])
-            self.add_action(func)
+            self.add_action(func, self.action_func_name[action])
 
 
     def load_from_config(self, config_file_path = None):
@@ -101,6 +103,7 @@ class device_interface(mqtt.Client):
         info_to_save = json.loads(info)
         self.client_id = info_to_save["client_id"]
         self.action_load = info_to_save["action_load"]
+        self.action_func_name = info_to_save["action_func_name"]
         self.host = info_to_save["host"]
         self.port = info_to_save["port"]
         self.keepalive = info_to_save["keepalive"]
@@ -120,9 +123,12 @@ class device_interface(mqtt.Client):
         self.device_type = info_to_save["device_type"]
         self.action.clear()
         self.__set_action_by_action_load()
+        self.__topic_subscribe = info_to_save["topic_subscribe"]
         if self.__on_running:
             self.__on_running = False
             self.run(self.device_type, self.host, self.port)
+            for topic in self.__topic_subscribe:
+                self.subscribe(topic, self.qos)
         return 0
 
     def save_to_config(self, config_file_path = None):
@@ -134,6 +140,7 @@ class device_interface(mqtt.Client):
         info_to_save = {}
         info_to_save["client_id"] = self.client_id
         info_to_save["action_load"] = self.action_load
+        info_to_save["action_func_name"] = self.action_func_name
         info_to_save["host"] = self.host
         info_to_save["port"] = self.port
         info_to_save["keepalive"] = self.keepalive
@@ -147,6 +154,7 @@ class device_interface(mqtt.Client):
         info_to_save["on_running"] = self.__on_running
         info_to_save["on_connect"] = self.__on_connect
         info_to_save["device_type"] = self.device_type
+        info_to_save["topic_subscribe"] = self.__topic_subscribe
         with open(config_file_path,'w') as f:
             f.write(json.dumps(info_to_save))
         
@@ -213,6 +221,8 @@ class device_interface(mqtt.Client):
         action_def_path = action.__code__.co_filename
         self.action_load[action_func_name] = action_def_path
         self.action[action_name] = action
+        self.action_func_name[action_func_name] = action_name
+        return 0
 
     def set_default_action(self, action):
         if self.__check_func_can_be_add(action) != 0:
@@ -309,6 +319,7 @@ class device_interface(mqtt.Client):
             成功发布消息后的回调
         """
         logging.info("OnPublish, mid: "+str(mid))
+
     
     def on_subscribe(self, mqttc, obj, mid, granted_qos):
         """
@@ -354,6 +365,15 @@ class device_interface(mqtt.Client):
         else:
             logging.error("the mqtt client is on running")
 
+    def add_subscribe(self, topic, qos = 0, options=None, properties=None):
+        """
+            为了保证订阅在保存后可以自动恢复，请使用此函数订阅
+
+            注意，options 以及 properties 暂不支持
+        """
+        if topic:
+            self.__topic_subscribe.append(topic)
+            self.subscribe(topic, qos, options, properties)
 
 
 
