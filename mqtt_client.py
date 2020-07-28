@@ -7,6 +7,40 @@ import datetime
 import time
 import threading
 import logging
+import threading
+
+
+# 单例模式的开启标识，如果为真，则启用单例模式
+# 用于自动导入时函数自动引用
+on_single_pattern = True
+
+def _save_input_py_file(msg):
+    payload = str(msg.payload, encoding="utf-8")
+    first_space = payload.find(' ')
+    if first_space < 0:
+        return                                 #说明问题的调用，开头应该是函数的别名
+    path_and_context = payload[first_space+1:] #返回的是第一个空格的位置，所以不要空格所以+1
+    second_space = path_and_context.find(' ')
+    if second_space < 0:                       #说明格式不正确
+        return
+    path = path_and_context[:second_space]     #空格不要
+    file_context = path_and_context[second_space+1:]
+    relpath = os.path.relpath(path)
+    if relpath.startswith(".."):               #说明路径不再当前目录下
+        return 
+    with open(relpath,"w") as f:               #此处不检查文件格式
+        f.write(file_context)
+
+def _load_python_file(msg, client):
+    payload = str(msg.payload, encoding="utf-8")
+    first_space = payload.find(' ')
+    if first_space < 0:
+        return                                 #说明问题的调用，开头应该是函数的别名
+    file_paths = payload[first_space+1:]       #返回的是第一个空格的位置，所以不要空格所以+1
+    client.load_python_module(file_paths)
+
+
+
 
 
 
@@ -28,6 +62,18 @@ class device_interface(mqtt.Client):
         port：连接的broker主机mqtt端口
         device_type：定义的设备类型，暂时无用
     """
+
+    __instance_lock = threading.Lock()
+
+    def __new__(cls, *args, **kargs):
+        print(cls)
+        print(args)
+        print(kargs)
+        if not hasattr(device_interface, "_instance"):
+            with device_interface.__instance_lock:
+                if not hasattr(device_interface, "_instance"):
+                    device_interface._instance =object.__new__(cls)
+        return device_interface._instance
 
     def __init__(self, client_id="test1", clean_session=None, 
             userdata=None,protocol=4, transport="tcp"):
@@ -61,6 +107,20 @@ class device_interface(mqtt.Client):
         self.default_func_path = None
         self.device_type = ""
         self.__topic_subscribe = []
+        
+
+
+    def load_python_module(self, paths):
+        file_paths = paths.split()
+        for path in file_paths:
+            relpath = os.path.relpath(path)
+            if not relpath.startswith('..'):
+                tmp = relpath.split(os.sep)           #文件路径的分隔符
+                package = tmp[0][:-3]
+                relpath = "." + "/".join(tmp[1:])  #懒得去修改了，反正python自动转义
+                module = importlib.import_module(relpath, package)
+                print("load module:"+str(module))
+                return module
 
     def __get_func_by_path(self,func_name,func_abs_path):
         """
@@ -129,6 +189,7 @@ class device_interface(mqtt.Client):
             self.run(self.device_type, self.host, self.port)
             for topic in self.__topic_subscribe:
                 self.subscribe(topic, self.qos)
+                self.topic_in_use.add(topic)
         return 0
 
     def save_to_config(self, config_file_path = None):
@@ -224,6 +285,10 @@ class device_interface(mqtt.Client):
         self.action_func_name[action_func_name] = action_name
         return 0
 
+    def add_action2(self, action):
+        self.add_action(action)
+        return action
+
     def set_default_action(self, action):
         if self.__check_func_can_be_add(action) != 0:
             return -1
@@ -270,6 +335,7 @@ class device_interface(mqtt.Client):
                     func = self.default_func
                 # 依据函数的参数数量进行调用
                 func_argc = func.__code__.co_argcount
+                # print("using func:"+func.__name__+"\r\narg count is "+str(func_argc))
                 if func_argc == 0:
                     ret = func()
                 elif func_argc == 1:
@@ -373,6 +439,7 @@ class device_interface(mqtt.Client):
         """
         if topic:
             self.__topic_subscribe.append(topic)
+            self.topic_in_use.add(topic)
             self.subscribe(topic, qos, options, properties)
 
 
