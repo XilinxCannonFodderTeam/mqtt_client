@@ -230,6 +230,26 @@ class device_interface(mqtt.Client):
             self.topic_in_use.add(topic)
             self.topic["2app_deivce"].add(topic)
 
+    def add_app_device_id_pair(self, appid, deviceid):
+        if appid or deviceid:
+            return -1
+        # 如果这个id对在双方的键值表中都有，说明无需添加
+        if appid in self.device_pair_app2device.keys() and \
+            deviceid in self.device_pair_device2app.keys():
+            return -1
+        if appid in self.device_pair_app2device.keys():
+            self.device_pair_app2device[appid].append(deviceid)
+        else:
+            self.device_pair_app2device[appid].append([deviceid])
+
+        if deviceid in self.device_pair_device2app.keys():
+            self.device_pair_device2app[deviceid].append(appid)
+        else:
+            self.device_pair_device2app[deviceid].append([appid])
+        return 0
+
+
+
     def change_2server_topic(self,topic):
         if topic and str(topic) not in self.topic_in_use:
             self.topic_in_use.add(topic)
