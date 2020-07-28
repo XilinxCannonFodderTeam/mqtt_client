@@ -12,7 +12,7 @@ import threading
 
 # 单例模式的开启标识，如果为真，则启用单例模式
 # 用于自动导入时函数自动引用
-on_single_pattern = True
+ON_SINGLE_PATTERN = False
 
 def _save_input_py_file(msg):
     payload = str(msg.payload, encoding="utf-8")
@@ -66,14 +66,14 @@ class device_interface(mqtt.Client):
     __instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kargs):
-        print(cls)
-        print(args)
-        print(kargs)
-        if not hasattr(device_interface, "_instance"):
-            with device_interface.__instance_lock:
-                if not hasattr(device_interface, "_instance"):
-                    device_interface._instance =object.__new__(cls)
-        return device_interface._instance
+        if ON_SINGLE_PATTERN:
+            if not hasattr(device_interface, "_instance"):
+                with device_interface.__instance_lock:
+                    if not hasattr(device_interface, "_instance"):
+                        device_interface._instance =object.__new__(cls)
+            return device_interface._instance
+        else:
+            return object.__new__(cls)
 
     def __init__(self, client_id="test1", clean_session=None, 
             userdata=None,protocol=4, transport="tcp"):
