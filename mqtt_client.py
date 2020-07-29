@@ -40,7 +40,12 @@ def _load_python_file(msg, client):
     client.load_python_module(file_paths)
 
 
-
+def get_topic_and_payload(msg):
+    if not msg:
+        return
+    topic = msg.topic
+    payload = str(msg.payload, encoding="utf-8")
+    return topic,payload
 
 
 
@@ -94,7 +99,7 @@ class device_interface(mqtt.Client):
         self.port = 1883
         self.keepalive = 60
         self.topic_in_use = set()
-        self.topic = {"2server":"to_server","2device":set(),"2app_deivce":set()}
+        self.topic = {"2server":"toserver","2device":set(),"2app_deivce":set()}
         self.device_pair_app2device = {}
         self.device_pair_device2app = {}
         self._rc_mean = ["connect success","wrong proticol",
