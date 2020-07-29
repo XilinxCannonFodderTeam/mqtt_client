@@ -2,11 +2,12 @@ from mqtt_client import device_interface as Client
 import flask
 import json
 
-host = ""
+host = "52.184.15.163"
 port = 1883
 app = flask.Flask(__name__)
 client = Client("server")
-client.run("server",host,port)
+client.run("out",host,port)
+client.subscribe("out",2)
 
 msg_queen = {}
 def add_to_queen(msg, client):
