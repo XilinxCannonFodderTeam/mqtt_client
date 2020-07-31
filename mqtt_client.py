@@ -360,6 +360,7 @@ class device_interface(mqtt.Client):
                     func = self.default_func
                 # 依据函数的参数数量进行调用
                 func_argc = func.__code__.co_argcount
+                print("calling func name:",func.__name__)
                 # print("using func:"+func.__name__+"\r\narg count is "+str(func_argc))
                 if func_argc == 0:
                     ret = func()
