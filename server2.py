@@ -31,7 +31,7 @@ def upload(pic_name, topic, time):
     return 1
 
 
-@app.route("./hello")
+@app.route("/hello")
 def hello():
     return "hello"
 
@@ -64,7 +64,7 @@ def lock_or_unlock():
     print("get unkown meaage from app")
     return "1"
 
-@app.route("./get_pic",methods=["GET","POST"])
+@app.route("/get_pic",methods=["GET","POST"])
 def get_pic(pic_name, topic, time):
     dir_path,filename = get_pic_path(topic, time)
 
