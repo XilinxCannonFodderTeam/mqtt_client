@@ -136,10 +136,12 @@ def add_rusult():
 
 if __name__ == "__main__":
     host = "52.184.15.163"
+    flask_host = "10.0.2.4"
+    flask_port = 5000
     port = 1883
     server.run("345", host, port)
     server.add_subscribe(server.topic["2server"])
-    app.run()
+    app.run(flask_host,flask_port)
     loop_time = 1
     while True:
         print("loop time is ",loop_time)
