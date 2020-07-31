@@ -12,7 +12,7 @@ app = flask.Flask(__name__)
 url_send_back = {}
 
 def generate_url(pic_name,topic,time):
-    url = "http://52.184.15.163:5000/get_pic
+    url = "http://52.184.15.163:5000/get_pic"
     return flask.url_for(url,pic_name=pic_name,topic=topic,time=time)
 
 @app.route("/upload",methods=["GET","POST"])
